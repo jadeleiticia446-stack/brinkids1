@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 
+// Força o Next.js e a Vercel a tratarem esta rota como dinâmica (ignora no build)
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("x-admin-auth");
-  if (auth !== "admin:admin123") {
+  const adminSecret = process.env.ADMIN_AUTH_SECRET || "admin:admin123";
+
+  if (auth !== adminSecret) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 
@@ -13,7 +18,6 @@ export async function GET(req: NextRequest) {
       orderBy: { dataCriacao: "desc" },
     });
 
-    // Decrypt on the server so the client can show masked or full values
     const safeLeads = leads.map((l) => ({
       id: l.id,
       nome: l.nome,

