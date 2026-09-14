@@ -3,6 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { encrypt } from "@/lib/crypto";
 
+// Força a Vercel a tratar esta rota como dinâmica (evita execução no build)
+export const dynamic = "force-dynamic";
+
 const checkoutSchema = z.object({
   nome: z.string().min(3, "Nome inválido"),
   email: z.string().email("E-mail inválido"),
